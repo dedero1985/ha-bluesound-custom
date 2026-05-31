@@ -1,7 +1,7 @@
 {
   "domain": "bluesound_custom",
   "name": "Bluesound Custom (Library, Radios & Streaming)",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "codeowners": ["@dedero1985"],
   "config_flow": true,
   "dependencies": [],

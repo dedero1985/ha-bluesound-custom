@@ -58,7 +58,7 @@ class Status:
     stream_format: str | None = None
     quality: str | None = None
     bitrate_kbps: int | None = None
-    track_gain_db: float | None = None
+    volume_db: float | None = None
     volume: int = 0
     mute: bool = False
     shuffle: bool = False
@@ -355,7 +355,7 @@ def _parse_status(raw: dict[str, Any]) -> Status:
         stream_format=_text(status.get("streamFormat")),
         quality=_text(status.get("quality")),
         bitrate_kbps=_int(status.get("bitrate"), 0) or None,
-        track_gain_db=_float(status.get("db")),
+        volume_db=_float(status.get("db")),
         volume=_int(status.get("volume"), 0),
         mute=_bool(status.get("mute")),
         shuffle=_bool(status.get("shuffle")),

@@ -210,8 +210,8 @@ class BluesoundCustomPlayer(
             attrs["audio_format"] = s.stream_format
         if s.bitrate_kbps:
             attrs["bitrate_kbps"] = s.bitrate_kbps
-        if s.track_gain_db is not None:
-            attrs["track_gain_db"] = s.track_gain_db
+        if s.volume_db is not None:
+            attrs["volume_db"] = s.volume_db
         if s.service:
             attrs["streaming_service"] = s.service
         if s.service_icon:

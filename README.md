@@ -219,7 +219,7 @@ NAS, etc.
 | `audio_quality`      | string  | `cd`, `hd`, `mq`, `mp3`, `aac`       | `quality`      |
 | `audio_format`       | string  | `FLAC 44.1 kHz, 16-bit`, `320 kbps MP3` | `streamFormat` |
 | `bitrate_kbps`       | int     | `1411`                               | `bitrate`      |
-| `track_gain_db`      | float   | `-6.0`                               | `db`           |
+| `volume_db`          | float   | `-60.1`                              | `db` (current playback level in dB, not ReplayGain) |
 | `streaming_service`  | string  | `Spotify`, `Tidal`, `TuneIn`         | `service`      |
 | `service_icon`       | URL     | `https://.../spotify.png`            | `serviceIcon`  |
 | `stream_url`         | URL     | `http://stream.example.com/...`      | `streamUrl`    |
