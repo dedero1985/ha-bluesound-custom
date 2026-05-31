@@ -37,6 +37,7 @@ from .const import (
     ID_FAVOURITES,
     ID_LIBRARY,
     ID_LIBRARY_NODE,
+    ID_PLAY_ADD,
     ID_PLAY_URL,
     ID_PLAYLISTS,
     ID_PRESET,
@@ -138,6 +139,14 @@ async def async_play(
         except BluOSError as err:
             raise BrowseError(f"Failed to play URL: {err}") from err
         return
+    if kind == ID_PLAY_ADD:
+        if not arg:
+            raise BrowseError("Empty BluOS add URL")
+        try:
+            await coordinator.client.add(arg, playnow=True)
+        except BluOSError as err:
+            raise BrowseError(f"Failed to queue and play: {err}") from err
+        return
     if kind in (ID_LIBRARY_NODE, ID_SERVICE, ID_RADIO_NODE, ID_RADIO_SERVICE):
         await _play_folder(coordinator, kind, arg)
         return
@@ -149,26 +158,26 @@ async def _play_folder(
     kind: str,
     arg: str,
 ) -> None:
-    """Best-effort 'play folder' with a two-step fallback.
+    """Fallback 'play folder' for items that lack their own addURL/playURL.
 
-    1. Try ``/Play?url=<key>`` directly. Some BluOS keys double as play
-       URLs (e.g. ``spotify:playlist:...``) and the device starts the
-       stream. For most local-music keys this returns an HTTP error,
-       which is fine -- it's how we detect step 2 is needed.
-    2. On step-1 failure, drill into the folder via the right /Browse
-       endpoint for this kind and play the first child that has a
-       ``playURL``.
+    Reached when the user pressed play on a pure-container node (e.g. a
+    top-level menu like ``LocalMusic:`` whose /Browse item carries only
+    ``browseKey``). BluOS will NOT accept a browseKey as a play URL
+    (confirmed against BluOS API v1.7) so we don't try /Play?url=<key>
+    here -- it would always fail. Instead:
 
-    Raises a clear BrowseError if no children are playable so the user
-    knows to expand the folder further instead of pressing play on it.
+    1. Drill into the folder via the right /Browse endpoint for the kind.
+    2. Play the first child that exposes a ``playURL`` (single track).
+    3. Or the first child that exposes an ``addURL`` (sub-album/playlist
+       queued via /Add?...&playnow=1).
+    4. If neither exists at the top level, raise a clear BrowseError so
+       the user knows to drill deeper.
+
+    Items that have their own addURL are handled directly by ID_PLAY_ADD
+    in async_play and never reach this function.
     """
     if not arg:
         raise BrowseError("Cannot play empty Bluesound node")
-    try:
-        await coordinator.client.play(url=arg)
-        return
-    except BluOSError:
-        pass
 
     try:
         items = await _list_folder(coordinator, kind, arg)
@@ -182,6 +191,12 @@ async def _play_folder(
         if item.play_url:
             try:
                 await coordinator.client.play(url=item.play_url)
+                return
+            except BluOSError:
+                continue
+        if item.add_url:
+            try:
+                await coordinator.client.add(item.add_url, playnow=True)
                 return
             except BluOSError:
                 continue
@@ -521,40 +536,63 @@ def _item_to_browse(
 ) -> BrowseMedia:
     """Convert a BluOS /Browse item into a BrowseMedia node.
 
-    A single /Browse item can be:
-    * playable (has ``playURL``)        → terminal node, play_media calls /Play
-    * a container (has ``browseKey``)   → expandable directory
-    * both (rare)                       → we treat as playable
+    Each /Browse item carries at most three identifiers, prioritised in
+    this order to produce a single ``media_content_id``:
+
+    * ``playURL``   -> ``play_url|<url>``     (direct stream, /Play?url=)
+    * ``addURL``    -> ``play_add|<addURL>``  (folder/album/playlist,
+                                               /Add?...&playnow=1 -- this
+                                               is what the BluOS phone app
+                                               uses for "Play All")
+    * ``browseKey`` -> ``library_node|<key>`` / ``radio_node|<svc>::<key>``
+                      (expandable directory; not playable)
     """
     title = item.text or ""
     if item.text2:
         title = f"{title} — {item.text2}" if title else item.text2
 
-    can_play = item.is_playable and item.play_url is not None
-    can_expand = item.is_container and item.key is not None and not can_play
-
-    if can_play:
-        media_class = _guess_media_class(item)
-        media_content_id = encode_id(ID_PLAY_URL, item.play_url or "")
-        media_content_type = MediaType.MUSIC
-    elif expand_kind == ID_RADIO_NODE:
-        media_class = MediaClass.DIRECTORY
-        media_content_id = encode_id(
-            ID_RADIO_NODE, f"{service or ''}::{item.key or ''}"
+    if item.play_url:
+        return BrowseMedia(
+            title=title or "(unnamed)",
+            media_class=_guess_media_class(item),
+            media_content_type=MediaType.MUSIC,
+            media_content_id=encode_id(ID_PLAY_URL, item.play_url),
+            can_play=True,
+            can_expand=False,
+            thumbnail=item.image,
         )
-        media_content_type = CONTENT_TYPE_BLUOS
-    else:
-        media_class = MediaClass.DIRECTORY
-        media_content_id = encode_id(expand_kind, item.key or "")
-        media_content_type = CONTENT_TYPE_BLUOS
+
+    if item.add_url:
+        return BrowseMedia(
+            title=title or "(unnamed)",
+            media_class=_guess_media_class(item),
+            media_content_type=MediaType.MUSIC,
+            media_content_id=encode_id(ID_PLAY_ADD, item.add_url),
+            can_play=True,
+            can_expand=False,
+            thumbnail=item.image,
+        )
+
+    if expand_kind == ID_RADIO_NODE:
+        return BrowseMedia(
+            title=title or "(unnamed)",
+            media_class=MediaClass.DIRECTORY,
+            media_content_type=CONTENT_TYPE_BLUOS,
+            media_content_id=encode_id(
+                ID_RADIO_NODE, f"{service or ''}::{item.key or ''}"
+            ),
+            can_play=False,
+            can_expand=item.key is not None,
+            thumbnail=item.image,
+        )
 
     return BrowseMedia(
         title=title or "(unnamed)",
-        media_class=media_class,
-        media_content_type=media_content_type,
-        media_content_id=media_content_id,
-        can_play=can_play,
-        can_expand=can_expand,
+        media_class=MediaClass.DIRECTORY,
+        media_content_type=CONTENT_TYPE_BLUOS,
+        media_content_id=encode_id(expand_kind, item.key or ""),
+        can_play=False,
+        can_expand=item.key is not None,
         thumbnail=item.image,
     )
 

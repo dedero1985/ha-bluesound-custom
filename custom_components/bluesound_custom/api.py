@@ -122,6 +122,7 @@ class BrowseItem:
     image: str | None = None
     play_url: str | None = None
     play_url_type: str | None = None
+    add_url: str | None = None
     is_playable: bool = False
     is_container: bool = False
     raw: dict[str, Any] = field(default_factory=dict)
@@ -213,6 +214,30 @@ class BluOSClient:
         if seek is not None:
             params["seek"] = str(seek)
         await self._get("/Play", params or None)
+
+    async def add(self, add_url: str, playnow: bool = True) -> None:
+        """Queue / play a folder via ``/Add``.
+
+        ``add_url`` is the raw ``addURL`` value from a /Browse item. BluOS
+        firmwares vary in how they format it; this method normalises three
+        observed shapes into a single ``/Add?...`` GET:
+
+        * bare query string -- ``service=LocalMusic&folder=/foo``
+        * leading question mark -- ``?service=LocalMusic&folder=/foo``
+        * full path -- ``/Add?service=LocalMusic&folder=/foo``
+
+        ``playnow=1`` is appended unless ``playnow`` is False or the addURL
+        already specifies a ``playnow`` value (some firmwares pre-encode it).
+        """
+        s = add_url.lstrip("/")
+        if s.startswith("Add?"):
+            s = s[4:]
+        elif s.startswith("Add"):
+            s = s[3:].lstrip("?")
+        s = s.lstrip("?")
+        if playnow and "playnow=" not in s:
+            s = f"{s}&playnow=1" if s else "playnow=1"
+        await self._get(f"/Add?{s}", params=None)
 
     async def pause(self, toggle: bool = False) -> None:
         await self._get("/Pause", {"toggle": "1"} if toggle else None)
@@ -452,6 +477,7 @@ def _parse_browse(raw: dict[str, Any]) -> list[BrowseItem]:
             continue
         item_type = _first_attr(item, "type")
         play_url = _first_attr(item, "playURL")
+        add_url = _first_attr(item, "addURL")
         key = _first_attr(item, "browseKey", "key")
         is_container = key is not None or item_type in ("menu", "list", "folder")
         is_playable = play_url is not None or item_type in (
@@ -469,6 +495,7 @@ def _parse_browse(raw: dict[str, Any]) -> list[BrowseItem]:
                 image=_first_attr(item, "image"),
                 play_url=play_url,
                 play_url_type=_first_attr(item, "playURLType"),
+                add_url=add_url,
                 is_playable=bool(is_playable),
                 is_container=bool(is_container) and not is_playable,
                 raw=item,

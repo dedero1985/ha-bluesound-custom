@@ -42,6 +42,7 @@ ID_SERVICE = "service"
 ID_PLAYLISTS = "playlists"
 ID_PRESET = "preset"
 ID_PLAY_URL = "play_url"
+ID_PLAY_ADD = "play_add"
 
 # media_content_type marker for our internal nodes (HA passes this back on drill-down).
 CONTENT_TYPE_BLUOS = "bluos"
