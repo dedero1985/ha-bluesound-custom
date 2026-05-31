@@ -205,6 +205,90 @@ data:
 The standard Home Assistant `media_player.*` services (`play_media`,
 `select_source`, `volume_set`, `media_seek`, …) all work too.
 
+## Now playing attributes
+
+In addition to the standard `media_title` / `media_artist` / `media_album_name`
+/ `media_image_url` properties (which the default HA media-control card
+already renders), the entity exposes these `extra_state_attributes`. They are
+only present when the device actually reports the field for the current
+stream — Spotify Connect doesn't expose the same fields as a FLAC from your
+NAS, etc.
+
+| Attribute            | Type    | Example                              | BluOS source   |
+| -------------------- | ------- | ------------------------------------ | -------------- |
+| `audio_quality`      | string  | `cd`, `hd`, `mq`, `mp3`, `aac`       | `quality`      |
+| `audio_format`       | string  | `FLAC 44.1 kHz, 16-bit`, `320 kbps MP3` | `streamFormat` |
+| `bitrate_kbps`       | int     | `1411`                               | `bitrate`      |
+| `track_gain_db`      | float   | `-6.0`                               | `db`           |
+| `streaming_service`  | string  | `Spotify`, `Tidal`, `TuneIn`         | `service`      |
+| `service_icon`       | URL     | `https://.../spotify.png`            | `serviceIcon`  |
+| `stream_url`         | URL     | `http://stream.example.com/...`      | `streamUrl`    |
+| `group_name`         | string  | `Living room + Kitchen`              | `groupName`    |
+
+The entity also returns `media_position_updated_at` so the default card's
+progress bar advances smoothly between long-poll updates instead of looking
+frozen.
+
+### Surfacing the extras in your dashboard
+
+The **default `media-control` card** only renders title / artist / album /
+image — that's a Home Assistant choice, not something the integration can
+override. For the rest, use any of:
+
+**`mini-media-player`** (HACS) — pass attribute names via `attribute`:
+
+```yaml
+type: custom:mini-media-player
+entity: media_player.living_room_bluesound
+info: scroll
+artwork: cover
+attribute:
+  - audio_quality
+  - audio_format
+  - bitrate_kbps
+```
+
+**`mushroom-media-player-card`** — templated secondary line:
+
+```yaml
+type: custom:mushroom-media-player-card
+entity: media_player.living_room_bluesound
+secondary_info: |
+  {{ state_attr('media_player.living_room_bluesound', 'audio_format') }}
+  ({{ state_attr('media_player.living_room_bluesound', 'bitrate_kbps') }} kbps)
+```
+
+**Plain `entities` card** — show attributes inline:
+
+```yaml
+type: entities
+entities:
+  - entity: media_player.living_room_bluesound
+    type: custom:multiple-entity-row
+    show_state: false
+    entities:
+      - attribute: audio_format
+        name: Format
+      - attribute: bitrate_kbps
+        name: kbps
+      - attribute: streaming_service
+        name: Source
+```
+
+**Template sensor** — promote a single attribute to a first-class entity so
+you can graph / alert / show it anywhere:
+
+```yaml
+template:
+  - sensor:
+      - name: Bluesound now-playing format
+        state: "{{ state_attr('media_player.living_room_bluesound', 'audio_format') }}"
+      - name: Bluesound now-playing bitrate
+        state: "{{ state_attr('media_player.living_room_bluesound', 'bitrate_kbps') }}"
+        unit_of_measurement: kbps
+        device_class: data_rate
+```
+
 ## Architecture
 
 ```text

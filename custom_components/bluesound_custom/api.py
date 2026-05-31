@@ -53,7 +53,12 @@ class Status:
     name: str | None = None
     image: str | None = None
     service: str | None = None
+    service_icon: str | None = None
     stream_url: str | None = None
+    stream_format: str | None = None
+    quality: str | None = None
+    bitrate_kbps: int | None = None
+    track_gain_db: float | None = None
     volume: int = 0
     mute: bool = False
     shuffle: bool = False
@@ -345,7 +350,12 @@ def _parse_status(raw: dict[str, Any]) -> Status:
         name=_text(status.get("name")),
         image=_text(status.get("image")),
         service=_text(status.get("service")),
+        service_icon=_text(status.get("serviceIcon")),
         stream_url=_text(status.get("streamUrl") or status.get("stream_url")),
+        stream_format=_text(status.get("streamFormat")),
+        quality=_text(status.get("quality")),
+        bitrate_kbps=_int(status.get("bitrate"), 0) or None,
+        track_gain_db=_float(status.get("db")),
         volume=_int(status.get("volume"), 0),
         mute=_bool(status.get("mute")),
         shuffle=_bool(status.get("shuffle")),

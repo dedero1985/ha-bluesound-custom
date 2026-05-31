@@ -15,11 +15,12 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 
 from .api import (
     BluOSClient,
@@ -52,6 +53,7 @@ class BluesoundData:
     sync_status: SyncStatus
     presets: list[Preset] = field(default_factory=list)
     services: list[Service] = field(default_factory=list)
+    fetched_at: datetime | None = None
 
 
 class BluesoundCustomCoordinator(DataUpdateCoordinator[BluesoundData]):
@@ -130,6 +132,7 @@ class BluesoundCustomCoordinator(DataUpdateCoordinator[BluesoundData]):
             sync_status=self.sync_status,
             presets=list(self._presets),
             services=list(self._services),
+            fetched_at=dt_util.utcnow(),
         )
 
     async def force_refresh(self) -> None:

@@ -194,6 +194,34 @@ class BluesoundCustomPlayer(
             return []
         return [svc.display_name or svc.name for svc in self.coordinator.data.services]
 
+    @property
+    def media_position_updated_at(self):
+        return self.coordinator.data.fetched_at if self.coordinator.data else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        s = self._status
+        if not s:
+            return {}
+        attrs: dict[str, Any] = {}
+        if s.quality:
+            attrs["audio_quality"] = s.quality
+        if s.stream_format:
+            attrs["audio_format"] = s.stream_format
+        if s.bitrate_kbps:
+            attrs["bitrate_kbps"] = s.bitrate_kbps
+        if s.track_gain_db is not None:
+            attrs["track_gain_db"] = s.track_gain_db
+        if s.service:
+            attrs["streaming_service"] = s.service
+        if s.service_icon:
+            attrs["service_icon"] = s.service_icon
+        if s.stream_url:
+            attrs["stream_url"] = s.stream_url
+        if s.group_name:
+            attrs["group_name"] = s.group_name
+        return attrs
+
     # ---- transport -----------------------------------------------------
 
     async def async_media_play(self) -> None:
