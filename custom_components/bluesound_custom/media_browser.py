@@ -109,7 +109,20 @@ async def async_play(
     media_content_type: str,
     media_content_id: str,
 ) -> None:
-    """Play a node selected from the browse tree."""
+    """Play a node selected from the browse tree.
+
+    Terminal kinds:
+      * ``preset|<id>``     -> ``/Preset?id=<id>``
+      * ``play_url|<url>``  -> ``/Play?url=<url>``
+
+    Folder kinds (``library_node`` / ``radio_node`` / ``radio_service`` /
+    ``service``) get "play folder" semantics: first try BluOS's own
+    ``/Play?url=<key>`` (works for service-style keys like
+    ``spotify:playlist:...``), then fall back to drilling in and playing
+    the first child that has a ``playURL``. This matches what the BluOS
+    phone app does on a "Play All" gesture and stops play_media from
+    erroring when the HA media-browser UI invokes it on a folder.
+    """
     kind, arg = decode_id(media_content_id)
     if kind == ID_PRESET:
         try:
@@ -125,7 +138,81 @@ async def async_play(
         except BluOSError as err:
             raise BrowseError(f"Failed to play URL: {err}") from err
         return
+    if kind in (ID_LIBRARY_NODE, ID_SERVICE, ID_RADIO_NODE, ID_RADIO_SERVICE):
+        await _play_folder(coordinator, kind, arg)
+        return
     raise BrowseError(f"Cannot play Bluesound node: {media_content_id}")
+
+
+async def _play_folder(
+    coordinator: BluesoundCustomCoordinator,
+    kind: str,
+    arg: str,
+) -> None:
+    """Best-effort 'play folder' with a two-step fallback.
+
+    1. Try ``/Play?url=<key>`` directly. Some BluOS keys double as play
+       URLs (e.g. ``spotify:playlist:...``) and the device starts the
+       stream. For most local-music keys this returns an HTTP error,
+       which is fine -- it's how we detect step 2 is needed.
+    2. On step-1 failure, drill into the folder via the right /Browse
+       endpoint for this kind and play the first child that has a
+       ``playURL``.
+
+    Raises a clear BrowseError if no children are playable so the user
+    knows to expand the folder further instead of pressing play on it.
+    """
+    if not arg:
+        raise BrowseError("Cannot play empty Bluesound node")
+    try:
+        await coordinator.client.play(url=arg)
+        return
+    except BluOSError:
+        pass
+
+    try:
+        items = await _list_folder(coordinator, kind, arg)
+    except BluOSError as err:
+        raise BrowseError(
+            f"Cannot open Bluesound folder: {err}. "
+            "Use the browse menu to drill in and pick a track."
+        ) from err
+
+    for item in items:
+        if item.play_url:
+            try:
+                await coordinator.client.play(url=item.play_url)
+                return
+            except BluOSError:
+                continue
+
+    raise BrowseError(
+        "This folder has no directly playable items at the top level. "
+        "Open it via the browse menu and pick a track, album, or playlist."
+    )
+
+
+async def _list_folder(
+    coordinator: BluesoundCustomCoordinator,
+    kind: str,
+    arg: str,
+) -> list[BrowseItem]:
+    if kind == ID_RADIO_NODE:
+        if "::" in arg:
+            service, key = arg.split("::", 1)
+        else:
+            service, key = "", arg
+        return await coordinator.client.radio_browse(
+            service=service or None, key=key
+        )
+    if kind == ID_RADIO_SERVICE:
+        return await coordinator.client.radio_browse(service=arg)
+    if kind == ID_SERVICE:
+        try:
+            return await coordinator.client.browse(key=arg)
+        except BluOSError:
+            return await coordinator.client.playlists(service=arg)
+    return await coordinator.client.browse(key=arg)
 
 
 # ---------------------------------------------------------------------------
