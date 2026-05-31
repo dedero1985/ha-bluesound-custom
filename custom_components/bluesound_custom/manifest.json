@@ -1,0 +1,14 @@
+{
+  "domain": "bluesound_custom",
+  "name": "Bluesound Custom (Library, Radios & Streaming)",
+  "version": "0.1.0",
+  "codeowners": ["@dedero1985"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/dedero1985/ha-bluesound-custom",
+  "integration_type": "device",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/dedero1985/ha-bluesound-custom/issues",
+  "requirements": ["xmltodict==0.13.0"],
+  "zeroconf": ["_musc._tcp.local."]
+}

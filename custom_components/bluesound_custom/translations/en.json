@@ -1,0 +1,44 @@
+{
+  "config": {
+    "flow_title": "{name} ({host})",
+    "step": {
+      "user": {
+        "title": "Add Bluesound Player",
+        "description": "Enter the network address of your BluOS player. The default control port is 11000.",
+        "data": {
+          "host": "Host",
+          "port": "Port"
+        },
+        "data_description": {
+          "host": "IP address or hostname of the player (e.g. 192.168.1.42).",
+          "port": "BluOS HTTP API port. Leave at 11000 unless you changed it."
+        }
+      },
+      "zeroconf_confirm": {
+        "title": "Bluesound device discovered",
+        "description": "Do you want to add the Bluesound player {name} ({host}) to Home Assistant?"
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not reach the device on the given host/port.",
+      "invalid_response": "The device responded but did not look like a BluOS player.",
+      "unknown": "An unexpected error occurred."
+    },
+    "abort": {
+      "already_configured": "This device is already configured.",
+      "no_mac": "Device did not return a MAC address \u2014 cannot uniquely identify it."
+    }
+  },
+  "services": {
+    "play_preset": {
+      "name": "Play preset",
+      "description": "Play a Bluesound preset by its numeric ID.",
+      "fields": {
+        "preset_id": {
+          "name": "Preset ID",
+          "description": "The numeric ID of the preset (1-99) as configured on the device."
+        }
+      }
+    }
+  }
+}

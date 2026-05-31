@@ -1,0 +1,21 @@
+play_preset:
+  name: Play preset
+  description: >-
+    Play a Bluesound preset (favourite radio / saved input) by its numeric ID
+    as configured on the device.
+  target:
+    entity:
+      integration: bluesound_custom
+      domain: media_player
+  fields:
+    preset_id:
+      name: Preset ID
+      description: Preset number as stored on the device (1-99).
+      required: true
+      example: 1
+      selector:
+        number:
+          min: 1
+          max: 99
+          step: 1
+          mode: box
