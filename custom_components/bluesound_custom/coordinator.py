@@ -12,6 +12,7 @@ Strategy:
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from dataclasses import dataclass, field
@@ -84,6 +85,38 @@ class BluesoundCustomCoordinator(DataUpdateCoordinator[BluesoundData]):
         self._presets_age: float = 0.0
         self._services_age: float = 0.0
         self._last_sync_stat: str | None = sync_status.raw.get("@syncStat") if sync_status.raw else None
+        self.folder_key: str | None = None
+
+    async def _async_setup(self) -> None:
+        """One-time setup before the first data refresh.
+
+        Probe a list of candidate BluOS browse keys (in parallel) to find
+        the one that drills into the file-system folder view of the local
+        music library. The exact key isn't documented in BluOS API v1.7
+        and varies by firmware; the first candidate that returns items is
+        cached on ``self.folder_key`` for the lifetime of the coordinator.
+        If no candidate works, ``folder_key`` stays None and the media
+        browser hides the Folders entry rather than surfacing a dead link.
+        """
+        from .const import FOLDER_KEY_CANDIDATES
+
+        async def _probe(candidate: str) -> str | None:
+            try:
+                items = await self.client.browse(key=candidate)
+            except BluOSError:
+                return None
+            return candidate if items else None
+
+        results = await asyncio.gather(
+            *(_probe(c) for c in FOLDER_KEY_CANDIDATES),
+            return_exceptions=False,
+        )
+        for candidate, result in zip(FOLDER_KEY_CANDIDATES, results):
+            if result:
+                self.folder_key = result
+                _LOGGER.debug("BluOS folder view discovered at key=%r", result)
+                return
+        _LOGGER.debug("BluOS folder view not exposed on this device")
 
     async def _async_update_data(self) -> BluesoundData:
         # /Status long-poll. On reconnect (etag=None) we get an immediate snapshot.

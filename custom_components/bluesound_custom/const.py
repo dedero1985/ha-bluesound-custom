@@ -43,6 +43,19 @@ ID_PLAYLISTS = "playlists"
 ID_PRESET = "preset"
 ID_PLAY_URL = "play_url"
 ID_PLAY_ADD = "play_add"
+ID_LIBRARY_FOLDERS = "library_folders"
+
+# Candidate /Browse keys for the file-system folder view of the local music
+# library. The exact key is firmware-specific and NOT documented in BluOS
+# Custom Integration API v1.7. The coordinator probes these in priority order
+# at setup time; the first one that returns items wins and gets cached.
+FOLDER_KEY_CANDIDATES: tuple[str, ...] = (
+    "LocalMusic:Folder:",
+    "LocalMusic:Folders:",
+    "LocalMusic:6Folder:",
+    "LocalMusic:7Folder:",
+    "LocalMusic:Files:",
+)
 
 # media_content_type marker for our internal nodes (HA passes this back on drill-down).
 CONTENT_TYPE_BLUOS = "bluos"

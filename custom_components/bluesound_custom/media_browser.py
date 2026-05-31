@@ -36,6 +36,7 @@ from .const import (
     DEFAULT_RADIO_SERVICES,
     ID_FAVOURITES,
     ID_LIBRARY,
+    ID_LIBRARY_FOLDERS,
     ID_LIBRARY_NODE,
     ID_PLAY_ADD,
     ID_PLAY_URL,
@@ -90,6 +91,7 @@ async def async_browse(
     routes = {
         ID_ROOT: lambda: _root(coordinator),
         ID_LIBRARY: lambda: _library_root(coordinator),
+        ID_LIBRARY_FOLDERS: lambda: _library_folders(coordinator),
         ID_LIBRARY_NODE: lambda: _library_node(coordinator, arg),
         ID_RADIO: lambda: _radio_root(coordinator),
         ID_RADIO_SERVICE: lambda: _radio_service(coordinator, arg),
@@ -263,6 +265,26 @@ async def _root(coordinator: BluesoundCustomCoordinator) -> BrowseMedia:
 
 async def _library_root(coordinator: BluesoundCustomCoordinator) -> BrowseMedia:
     items = await _safe_browse(coordinator, key=None)
+    children = [_item_to_browse(item, ID_LIBRARY_NODE) for item in items]
+
+    if coordinator.folder_key:
+        already_has_folders = any(
+            "folder" in (item.text or "").lower() or item.type == "folder"
+            for item in items
+        )
+        if not already_has_folders:
+            children.append(
+                BrowseMedia(
+                    title="Folders",
+                    media_class=MediaClass.DIRECTORY,
+                    media_content_type=CONTENT_TYPE_BLUOS,
+                    media_content_id=encode_id(ID_LIBRARY_FOLDERS),
+                    can_play=False,
+                    can_expand=True,
+                    children_media_class=MediaClass.DIRECTORY,
+                )
+            )
+
     return BrowseMedia(
         title="Library",
         media_class=MediaClass.DIRECTORY,
@@ -270,7 +292,7 @@ async def _library_root(coordinator: BluesoundCustomCoordinator) -> BrowseMedia:
         media_content_id=encode_id(ID_LIBRARY),
         can_play=False,
         can_expand=True,
-        children=[_item_to_browse(item, ID_LIBRARY_NODE) for item in items],
+        children=children,
         children_media_class=MediaClass.DIRECTORY,
     )
 
@@ -288,6 +310,39 @@ async def _library_node(
         can_expand=True,
         children=[_item_to_browse(item, ID_LIBRARY_NODE) for item in items],
         children_media_class=MediaClass.MUSIC,
+    )
+
+
+async def _library_folders(
+    coordinator: BluesoundCustomCoordinator,
+) -> BrowseMedia:
+    """Drill into the file-system folder view of the local music library.
+
+    Uses the browse key discovered at coordinator setup time (probed
+    against FOLDER_KEY_CANDIDATES). The key is firmware-specific and is
+    NOT in the public BluOS API v1.7 spec, so this raises a clear
+    BrowseError if no candidate worked at setup -- preventing a
+    silent "empty folder" UX.
+    """
+    key = coordinator.folder_key
+    if not key:
+        raise BrowseError(
+            "This BluOS firmware doesn't expose the file-system Folder view "
+            "via the documented browse keys. Browse by Artist / Album / "
+            "Genre instead, or open the Folders view in the BluOS phone app "
+            "and report the key it uses at "
+            "https://github.com/dedero1985/ha-bluesound-custom/issues."
+        )
+    items = await _safe_browse(coordinator, key=key)
+    return BrowseMedia(
+        title="Folders",
+        media_class=MediaClass.DIRECTORY,
+        media_content_type=CONTENT_TYPE_BLUOS,
+        media_content_id=encode_id(ID_LIBRARY_FOLDERS),
+        can_play=False,
+        can_expand=True,
+        children=[_item_to_browse(item, ID_LIBRARY_NODE) for item in items],
+        children_media_class=MediaClass.DIRECTORY,
     )
 
 
